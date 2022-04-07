@@ -30,7 +30,7 @@
 	option('DIR_ROOT_BANNER_IN_SUBDIRS', TRUE);
 	option('DIR_DESC_IN_GALLERY', TRUE);
 	option('DIR_DESC_IN_INFO', TRUE);
-	option('DIR_SORT_REVERSE', FALSE);
+	option('DIR_SORT_REVERSE', TRUE);
 	option('DIR_SORT_BY_TIME', FALSE);
 	option('DIR_EXCLUDE', ['_sfpg_data', '_sfpg_icons']);  // Use only lower case.
 
@@ -51,7 +51,7 @@
 	option('FILE_THUMB_DEFAULT', '');
 	option('FILE_SORT_REVERSE', FALSE);
 	option('FILE_SORT_BY_TIME', FALSE);
-	option('FILE_EXCLUDE', []);  // Use only lower case.
+	option('FILE_EXCLUDE', ['.ftpquota']);  // Use only lower case.
 	option('FILE_EXT_EXCLUDE', ['.php', '.txt', '.sell']);  // Use only lower case.
 	option('FILE_EXCLUDE_REGEX', '');
 
