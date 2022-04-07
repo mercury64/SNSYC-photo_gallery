@@ -1,6 +1,6 @@
 <?php
 
-	/*
+    /*
 
 		Single File PHP Gallery 4.9.0 (SFPG)
 
@@ -17,7 +17,7 @@
 
 	//	----------- CONFIGURATION START ------------
 
-	option('GALLERY_ROOT', './');
+	option('GALLERY_ROOT', './images/');
 	option('DATA_ROOT', './_sfpg_data/');
 	option('PASSWORD', '');
 	option('ADMIN', FALSE);  // WARNING - See description in readme.txt before setting to TRUE
@@ -78,6 +78,11 @@
 	option('THUMB_JPEG_QUALITY', 75);
 	option('THUMB_PNG_ALPHA', TRUE);
 
+	define('PREVIEW_MAX_WIDTH', 1920);
+	define('PREVIEW_MAX_HEIGHT', 1080);
+	define('PREVIEW_ENLARGE', TRUE);
+	define('PREVIEW_JPEG_QUALITY', 75);
+	
 	option('LOW_IMAGE_RESAMPLE_QUALITY', FALSE);
 	option('KEYBOARD_NAVIGATION', TRUE);
 	option('WATERMARK', '');
@@ -576,6 +581,7 @@
 				imagefilledrectangle($new_image, $stereo_align+(int)($mpo_stereo_width/2)-3, MPO_SPACING-3, $stereo_align+(int)($mpo_stereo_width/2)+3, MPO_SPACING+3, $white);
 				imagefilledrectangle($new_image, $stereo_align+MPO_SPACING+(int)($mpo_stereo_width*1.5)-3, MPO_SPACING-3, $stereo_align+MPO_SPACING+(int)($mpo_stereo_width*1.5)+3, MPO_SPACING+3, $white);
 			}
+			imageinterlace($new_image, true);
 			return $new_image;
 		}
 		else
@@ -585,6 +591,7 @@
 			$new_image = imagecreatetruecolor($mpo_width, $mpo_height);
 			imagecopyresampled($new_image, $image, 0, 0, 0, 0, $mpo_width, $mpo_height, imagesx($image), imagesy($image));
 			imagedestroy($image);
+			imageinterlace($new_image, true);
 			return $new_image;
 		}
 	}
@@ -821,7 +828,7 @@
 			readfile($image_path_file);
 			exit;
 		}
-		if ($func == 'thumb')
+		if (($func == 'thumb') or ($func == 'preview'))
 		{
 			if (file_exists($image_path_file))
 			{
@@ -832,25 +839,33 @@
 			}
 			else
 			{
+
+				$source_img = GALLERY_ROOT.$image_dir.$image_file;
+				if (!$image = imagecreatefromstring(file_get_contents($source_img)))
+				{
+					exit;
+				}
+
 				$max_width = THUMB_MAX_WIDTH;
 				$max_height = THUMB_MAX_HEIGHT;
 				$enlarge = THUMB_ENLARGE;
 				$jpeg_quality = THUMB_JPEG_QUALITY;
-				$source_img = GALLERY_ROOT.$image_dir.$image_file;
+
 				$image_changed = FALSE;
-				if ((MPO_FULL_IMAGE or MPO_STEREO_IMAGE) and (sfpg_ext($image_file)=='.mpo'))
+				
+				if ($func == 'preview')
 				{
-					if (!$image = sfpg_mpo_image($source_img))
-					{
-						exit;
-					}
-					$image_changed = TRUE;
+					$max_width = PREVIEW_MAX_WIDTH;
+					$max_height = PREVIEW_MAX_HEIGHT;
+					$enlarge = PREVIEW_ENLARGE;
+					$jpeg_quality = PREVIEW_JPEG_QUALITY;
+					$source_img = DATA_ROOT.'preview/'.$image_dir.$image_file;
+
+					$image_changed = FALSE;
+
 				}
-				elseif (!$image = imagecreatefromstring(file_get_contents($source_img)))
-				{
-					exit;
-				}
-				if (($func == 'thumb') and ($image_dir != ICONS_DIR))
+
+				if (($image_dir != ICONS_DIR))
 				{
 					sfpg_mkdir(DATA_ROOT.'info/'.$image_dir);
 					$image_info = [];
@@ -3007,7 +3022,7 @@
 
 			if ($_GET['cmd'] == 'image')
 			{
-				sfpg_image(GALLERY, IMAGE, 'image');
+				sfpg_image(GALLERY, IMAGE, 'preview');
 				exit;
 			}
 
@@ -3047,273 +3062,6 @@
 	}
 
 	header('Content-Type: text/html; charset="'.CHARSET.'"');
-
-	if (PAYPAL_ENABLED)
-	{
-		if (isset($_GET['sold']))
-		{
-			echo '<br>'.TEXT_PAYPAL_THANKS;
-			echo '<a href="'.$_SERVER['PHP_SELF'].'" alt="">'.TEXT_HOME.'</a>';
-			exit();
-		}
-	}
-
-	if (ADMIN===TRUE)
-	{
-		if (isset($_POST['func']))
-		{
-			if ($_POST['func']==='move')
-			{
-				if (isset($_POST['toFolder']) and isset($_POST['elems']) and is_array($_POST['elems']) and (count($_POST['elems']) > 0))
-				{
-					$to_dir_array = sfpg_url_decode($_POST['toFolder']);
-					if (($to_dir_array!==false) and ($to_dir_array[1]==='') and is_dir(GALLERY_ROOT.$to_dir_array[0]))
-					{
-						$to_dir=GALLERY_ROOT.$to_dir_array[0];
-						foreach ($_POST['elems'] as $elem)
-						{
-							$move_elem = sfpg_url_decode($elem);
-							if ($move_elem)
-							{
-								if (($move_elem[1]==='') and (is_dir(GALLERY_ROOT.$move_elem[0])))
-								{
-									$slash_pos=strrpos($move_elem[0],'/',-2);
-									if($slash_pos!==FALSE)
-									{
-										$slash_pos+=1;
-									}
-									else
-									{
-										$slash_pos=0;
-									}
-									$dir_name = substr($move_elem[0],$slash_pos);
-									rename(GALLERY_ROOT.$move_elem[0], $to_dir.$dir_name);
-								}
-								else
-								{
-									$file_to_move=GALLERY_ROOT.$move_elem[0].$move_elem[1];
-									rename($file_to_move, $to_dir.$move_elem[1]);
-									if (file_exists($file_to_move.DESC_EXT))
-									{
-										rename($file_to_move.DESC_EXT, $to_dir.$move_elem[1].DESC_EXT);
-									}
-									if (sfpg_image_type($file_to_move) and (file_exists($file_to_move.PAYPAL_EXTENSION)))
-									{
-										rename($file_to_move.PAYPAL_EXTENSION, $to_dir.$move_elem[1].PAYPAL_EXTENSION);
-									}
-									elseif (file_exists($file_to_move.FILE_THUMB_EXT))
-									{
-										rename($file_to_move.FILE_THUMB_EXT, $to_dir.$move_elem[1].FILE_THUMB_EXT);
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-			if ($_POST['func']==='setthumb')
-			{
-				if (isset($_POST['elems']))
-				{
-					if (count($_POST['elems']) == 1)
-					{
-						$new_thumb = sfpg_url_decode($_POST['elems'][0]);
-						if ($new_thumb)
-						{
-							if (sfpg_image_type($new_thumb[1])===sfpg_image_type(DIR_THUMB_FILE))
-							{
-								copy(GALLERY_ROOT.$new_thumb[0].$new_thumb[1], GALLERY_ROOT.$new_thumb[0].DIR_THUMB_FILE);
-								sfpg_set_dir_info($new_thumb[0]);
-							}
-							else
-							{
-								echo TEXT_WRONG_FILETYPE.sfpg_image_type(DIR_THUMB_FILE);
-								exit;
-							}
-						}
-					}
-				}
-				else
-				{
-					if (isset($_POST['path']))
-					{
-						$path = sfpg_url_decode($_POST['path']);
-						if ($path)
-						{
-							unlink(GALLERY_ROOT.$path[0].DIR_THUMB_FILE);
-							sfpg_set_dir_info($path[0]);
-						}
-					}
-				}
-			}
-			if ($_POST['func']==='delete')
-			{
-				if (isset($_POST['elems']) and is_array($_POST['elems']) and (count($_POST['elems']) > 0))
-				{
-					foreach ($_POST['elems'] as $elem)
-					{
-						$del_elem = sfpg_url_decode($elem);
-						if ($del_elem)
-						{
-							$element=GALLERY_ROOT.$del_elem[0].$del_elem[1];
-							sfpg_delete($element);
-							if (!is_dir($element))
-							{
-								sfpg_delete($element.DESC_EXT);
-								if (sfpg_image_type($element))
-								{
-									sfpg_delete($element.PAYPAL_EXTENSION);
-								}
-								else
-								{
-									sfpg_delete($element.FILE_THUMB_EXT);
-								}
-							}
-						}
-					}
-				}
-			}
-			if (($_POST['func']==='makedir') and (isset($_POST['dir'])) and (isset($_POST['path'])))
-			{
-				$new_dir=$_POST['dir'];
-				$path=$_POST['path'];
-				if (($new_dir!=='') and $path)
-				{
-					$path = sfpg_url_decode($path);
-					if ($path and ($path[1]===''))
-					{
-						$path=GALLERY_ROOT.$path[0];
-						sfpg_mkdir($path.$new_dir);
-					}
-				}
-			}
-			if (($_POST['func']==='rename') and (isset($_POST['eleToRen'])) and (isset($_POST['newName'])))
-			{
-				$newName=$_POST['newName'];
-				$eleToRen=$_POST['eleToRen'];
-				if ($newName!=='' and $eleToRen)
-				{
-					$eleToRen = sfpg_url_decode($eleToRen);
-					if ($eleToRen)
-					{
-						if ($eleToRen[1]!=='')
-						{
-							$newName.=((!SHOW_IMAGE_EXT and sfpg_image_type($eleToRen[1]))?sfpg_ext($eleToRen[1]):'');
-							if ((!file_exists(GALLERY_ROOT.$eleToRen[0].$newName)) and (!is_dir(GALLERY_ROOT.$eleToRen[0].$newName)))
-							{
-								if (sfpg_image_type($eleToRen[1]))
-								{
-									if (file_exists(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].PAYPAL_EXTENSION))
-									{
-										rename(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].PAYPAL_EXTENSION, GALLERY_ROOT.$eleToRen[0].$newName.PAYPAL_EXTENSION);
-									}
-								}
-								elseif (file_exists(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].FILE_THUMB_EXT))
-								{
-									rename(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].FILE_THUMB_EXT, GALLERY_ROOT.$eleToRen[0].$newName.FILE_THUMB_EXT);
-								}
-								if (file_exists(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].DESC_EXT))
-								{
-									rename(GALLERY_ROOT.$eleToRen[0].$eleToRen[1].DESC_EXT, GALLERY_ROOT.$eleToRen[0].$newName.DESC_EXT);
-								}
-								rename(GALLERY_ROOT.$eleToRen[0].$eleToRen[1], GALLERY_ROOT.$eleToRen[0].$newName);
-							}
-						}
-						else
-						{
-							$oldPath=GALLERY_ROOT.$eleToRen[0];
-							$oldPath=rtrim($oldPath,'/');
-							$newPath = substr($oldPath, 0, strrpos($oldPath, '/')+1).$newName;
-							if ((!file_exists($newPath)) and (!is_dir($newPath)))
-							{
-								rename(GALLERY_ROOT.$eleToRen[0], $newPath);
-							}
-						}
-					}
-				}
-			}
-			if ($_POST['func']==='desc')
-			{
-				$action=$_POST['action'];
-				$text=$_POST['text'];
-				$ele=$_POST['ele'];
-				if (($action==='del') or ($text===''))
-				{
-					$eleWd = sfpg_url_decode($ele);
-					if ($eleWd)
-					{
-						$element=GALLERY_ROOT.$eleWd[0].$eleWd[1];
-						if (is_dir($element))
-						{
-							sfpg_delete($element.DIR_DESC_FILE);
-						}
-						else
-						{
-							sfpg_delete($element.DESC_EXT);
-						}
-					}
-				}
-				elseif ($action==='save')
-				{
-					$eleWd = sfpg_url_decode($ele);
-					if ($eleWd)
-					{
-						$element=GALLERY_ROOT.$eleWd[0].$eleWd[1];
-						if (is_dir($element))
-						{
-							$element.=DIR_DESC_FILE;
-						}
-						else
-						{
-							$element.=DESC_EXT;
-						}
-						file_put_contents($element,$text);
-					}
-				}
-			}
-			if ($_POST['func']==='sell')
-			{
-				$action=$_POST['action'];
-				$ele=$_POST['ele'];
-				if ($action==='del')
-				{
-					$eleWd = sfpg_url_decode($ele);
-					if ($eleWd)
-					{
-						sfpg_delete(GALLERY_ROOT.$eleWd[0].$eleWd[1].PAYPAL_EXTENSION);
-					}
-				}
-				elseif ($action==='save')
-				{
-					$eleWd = sfpg_url_decode($ele);
-					if ($eleWd)
-					{
-						file_put_contents(GALLERY_ROOT.$eleWd[0].$eleWd[1].PAYPAL_EXTENSION,$_POST['ePrice']."\r\n".$_POST['eStatus']."\r\n".$_POST['eIdent']);
-					}
-				}
-			}
-			if ($_POST['func']==='upload')
-			{
-				if (isset($_FILES['ulele']))
-				{
-					$nrUlEle=count($_FILES['ulele']['name']);
-					for ($i=0; $i<$nrUlEle; $i++)
-					{
-						if ($_FILES['ulele']['error'][$i]===0)
-						{
-							move_uploaded_file($_FILES['ulele']['tmp_name'][$i],GALLERY_ROOT.GALLERY.$_FILES['ulele']['name'][$i]);
-						}
-					}
-				}
-			}
-		}
-		if ($_GET['cmd'] == 'dirs')
-		{
-			sfpg_browse_dirs();
-			exit;
-		}
-	}
-
 
 	list($dirs, $images, $files, $misc) = sfpg_get_dir(GALLERY);
 	echo '<!DOCTYPE html><html lang="'.HTML_LANGUAGE.'"><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta charset="'.CHARSET.'"><meta name="description" content="Single File PHP Gallery"><title>'.TEXT_GALLERY_NAME.'</title><style>'.
